@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isRunning = false;
     let currentCritiques = [];
     let activeRunId = null;
+    let activeDraftText = "";
 
     // Initialize Lucide Icons
     lucide.createIcons();
@@ -513,6 +514,36 @@ document.addEventListener('DOMContentLoaded', () => {
             nodes.start.className = 'graph-node active';
             addLogEntry('save', '🚀 Workflow Initiated', `Starting Reflector Agent for topic: "${data.topic}" (Target Score: ${data.target_rating}/10, Max Iterations: ${data.max_iterations})`);
         }
+        else if (data.event === 'node_start') {
+            const nodeName = data.node;
+            const currentIt = parseInt(metricIteration.textContent) || 0;
+            updateGraphState(nodeName, nodeName === 'writer' ? currentIt + 1 : currentIt, 0, targetRating);
+            
+            if (nodeName === 'search') {
+                systemStatusText.textContent = 'Researching...';
+            }
+            else if (nodeName === 'writer') {
+                systemStatusText.textContent = 'Writing Draft...';
+                activeDraftText = "";
+                renderMarkdown("");
+                // Auto switch to Preview tab to see real-time generation
+                document.querySelector('[data-tab="preview"]').click();
+            }
+            else if (nodeName === 'critic') {
+                systemStatusText.textContent = 'Critiquing...';
+            }
+            else if (nodeName === 'save') {
+                systemStatusText.textContent = 'Saving Article...';
+            }
+        }
+        else if (data.event === 'token') {
+            activeDraftText += data.text;
+            renderMarkdown(activeDraftText);
+            
+            // Live update the word count metric
+            const wordCount = activeDraftText.trim().split(/\s+/).filter(w => w.length > 0).length;
+            metricWords.textContent = wordCount;
+        }
         else if (data.event === 'node') {
             const nodeName = data.node;
             updateGraphState(nodeName, data.iteration, data.rating, targetRating);
@@ -531,11 +562,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 systemStatusText.textContent = 'Writing Draft...';
                 const draftContent = data.messages[0]?.content || '';
                 
+                activeDraftText = draftContent;
                 renderMarkdown(draftContent);
                 updateMetrics(0, data.iteration, draftContent);
-                
-                // Active draft tab
-                document.querySelector('[data-tab="preview"]').click();
                 
                 addLogEntry('writer', `✍️ Draft Generated (Iteration ${data.iteration})`, 
                     `Writer created article draft. Word count: ${draftContent.split(/\s+/).filter(w => w.length > 0).length} words.`);

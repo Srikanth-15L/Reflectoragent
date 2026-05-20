@@ -115,40 +115,62 @@ async def generate_article(request: GenerateRequest):
 
         try:
             # Stream the events from LangGraph
-            async for event in graph.astream(initial_state, stream_mode="updates"):
-                # event is a dict mapping node_name -> state_updates
-                node_name = list(event.keys())[0]
-                node_data = event[node_name]
+            async for event in graph.astream_events(initial_state, version="v2"):
+                event_type = event.get("event")
+                name = event.get("name")
                 
-                # Format node details
-                messages = [serialize_message(m) for m in node_data.get("messages", [])]
-                rating = node_data.get("rating", 0)
-                iteration = node_data.get("iteration", 0)
-                
-                # Update tracking vars
-                if rating:
-                    final_rating = rating
-                if iteration:
-                    final_iterations = iteration
-                
-                # If we have an AI message in this node, update the latest draft
-                for msg in reversed(node_data.get("messages", [])):
-                    if isinstance(msg, AIMessage):
-                        final_article = msg.content
-                        break
-                
-                formatted_event = {
-                    "event": "node",
-                    "node": node_name,
-                    "rating": rating,
-                    "iteration": iteration,
-                    "messages": messages,
-                }
-                
-                events_log.append(formatted_event)
-                yield f"data: {json.dumps(formatted_event)}\n\n"
-                # Small sleep to allow client to process smooth transitions
-                await asyncio.sleep(0.5)
+                # 1. Node Start
+                if event_type == "on_node_start" and name in ["search", "writer", "critic", "save"]:
+                    formatted_event = {
+                        "event": "node_start",
+                        "node": name,
+                    }
+                    yield f"data: {json.dumps(formatted_event)}\n\n"
+                    await asyncio.sleep(0.01)
+                    
+                # 2. Token Streaming (from Writer Chat Model)
+                elif event_type == "on_chat_model_stream":
+                    metadata = event.get("metadata", {})
+                    # Ensure this stream comes from the writer node
+                    if metadata.get("langgraph_node") == "writer":
+                        chunk = event["data"].get("chunk")
+                        if chunk and hasattr(chunk, "content"):
+                            token = chunk.content
+                            if token:
+                                yield f"data: {json.dumps({'event': 'token', 'text': token})}\n\n"
+                                
+                # 3. Node End
+                elif event_type == "on_node_end" and name in ["search", "writer", "critic", "save"]:
+                    output = event["data"].get("output", {})
+                    if isinstance(output, dict):
+                        rating = output.get("rating", 0)
+                        iteration = output.get("iteration", 0)
+                        
+                        if rating:
+                            final_rating = rating
+                        if iteration:
+                            final_iterations = iteration
+                            
+                        messages = [serialize_message(m) for m in output.get("messages", [])]
+                        
+                        # Extract the final article draft if available
+                        for msg in reversed(output.get("messages", [])):
+                            if isinstance(msg, AIMessage):
+                                final_article = msg.content
+                                break
+                                
+                        formatted_event = {
+                            "event": "node", # Key is 'node' to match previous history structure
+                            "node": name,
+                            "rating": rating,
+                            "iteration": iteration,
+                            "messages": messages,
+                        }
+                        
+                        events_log.append(formatted_event)
+                        yield f"data: {json.dumps(formatted_event)}\n\n"
+                        # Short sleep to let UI process the node completion
+                        await asyncio.sleep(0.2)
             
             # If the final article wasn't captured in the stream (e.g. from writer node),
             # let's look for it in the output file, or construct it.
