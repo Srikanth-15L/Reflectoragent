@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflector Agent Studio</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="refresh-cw" class="spin-slow text-accent"></i>
+                </div>
+                <div>
+                    <h1>Reflector Agent <span class="badge-beta">Studio</span></h1>
+                    <p class="subtitle">Self-Correcting Iterative Article Generator using LangGraph</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <span class="status-indicator idle" id="system-status-indicator"></span>
+                <span class="status-text" id="system-status-text">Ready</span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="workspace-grid">
+            
+            <!-- Left Panel: Configurations & History -->
+            <section class="panel-left">
+                <!-- Config Card -->
+                <div class="card glass">
+                    <div class="card-header">
+                        <i data-lucide="sliders" class="card-icon"></i>
+                        <h2>Configuration</h2>
+                    </div>
+                    <div class="card-body">
+                        <form id="generate-form">
+                            <div class="form-group">
+                                <label for="topic">Article Topic</label>
+                                <textarea id="topic" name="topic" rows="3" placeholder="e.g. why python is best language for AI" required></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group flex-1">
+                                    <label for="target-rating">
+                                        Target Rating
+                                        <span class="value-badge" id="target-rating-val">8/10</span>
+                                    </label>
+                                    <input type="range" id="target-rating" name="target-rating" min="5" max="10" value="8" step="1">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="max-iterations">
+                                        Max Iterations
+                                        <span class="value-badge" id="max-iterations-val">3</span>
+                                    </label>
+                                    <input type="range" id="max-iterations" name="max-iterations" min="1" max="5" value="3" step="1">
+                                </div>
+                            </div>
+                            <button type="submit" id="submit-btn" class="btn btn-primary btn-glow">
+                                <i data-lucide="play" class="btn-icon"></i>
+                                <span>Initiate Workflow</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- History Card -->
+                <div class="card glass history-card flex-1">
+                    <div class="card-header">
+                        <i data-lucide="history" class="card-icon"></i>
+                        <h2>Run History</h2>
+                    </div>
+                    <div class="card-body scrollable">
+                        <div id="history-list" class="history-list">
+                            <div class="empty-state">
+                                <i data-lucide="folder-open"></i>
+                                <p>No previous runs found</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center Panel: Graph Visualization & Logs -->
+            <section class="panel-center">
+                <!-- Graph Visualization -->
+                <div class="card glass visualizer-card">
+                    <div class="card-header">
+                        <i data-lucide="git-branch" class="card-icon"></i>
+                        <h2>LangGraph Workflow</h2>
+                    </div>
+                    <div class="card-body graph-container">
+                        <div class="graph-nodes">
+                            <!-- Node: START -->
+                            <div class="graph-node-wrapper start-node">
+                                <div class="graph-node disabled" id="node-start">
+                                    <i data-lucide="play-circle"></i>
+                                    <span>START</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Arrow 1 -->
+                            <div class="graph-arrow" id="arrow-start-search">
+                                <div class="arrow-line"></div>
+                            </div>
+
+                            <!-- Node: SEARCH -->
+                            <div class="graph-node-wrapper">
+                                <div class="graph-node disabled" id="node-search">
+                                    <i data-lucide="search"></i>
+                                    <span>Search</span>
+                                </div>
+                            </div>
+
+                            <!-- Arrow 2 -->
+                            <div class="graph-arrow" id="arrow-search-writer">
+                                <div class="arrow-line"></div>
+                            </div>
+
+                            <!-- Node: WRITER -->
+                            <div class="graph-node-wrapper">
+                                <div class="graph-node disabled" id="node-writer">
+                                    <i data-lucide="pen-tool"></i>
+                                    <span>Writer</span>
+                                </div>
+                            </div>
+
+                            <!-- Arrow 3 -->
+                            <div class="graph-arrow" id="arrow-writer-critic">
+                                <div class="arrow-line"></div>
+                            </div>
+
+                            <!-- Node: CRITIC -->
+                            <div class="graph-node-wrapper">
+                                <div class="graph-node disabled" id="node-critic">
+                                    <i data-lucide="eye"></i>
+                                    <span>Critic</span>
+                                </div>
+                            </div>
+
+                            <!-- Conditional Loop Paths -->
+                            <!-- Loop back Arrow -->
+                            <div class="graph-arrow loop-arrow" id="arrow-critic-writer">
+                                <div class="arrow-line-loop"></div>
+                                <span class="loop-text">&lt; Target Rating</span>
+                            </div>
+
+                            <!-- Arrow 4 -->
+                            <div class="graph-arrow" id="arrow-critic-save">
+                                <div class="arrow-line"></div>
+                                <span class="pass-text">&ge; Target</span>
+                            </div>
+
+                            <!-- Node: SAVE -->
+                            <div class="graph-node-wrapper">
+                                <div class="graph-node disabled" id="node-save">
+                                    <i data-lucide="save"></i>
+                                    <span>Save</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Log Timeline -->
+                <div class="card glass timeline-card flex-1">
+                    <div class="card-header">
+                        <i data-lucide="terminal" class="card-icon"></i>
+                        <h2>Execution Log</h2>
+                    </div>
+                    <div class="card-body scrollable">
+                        <div id="timeline-log" class="timeline-log">
+                            <div class="empty-state">
+                                <i data-lucide="activity"></i>
+                                <p>Initiate workflow to view agent logs</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Outputs -->
+            <section class="panel-right">
+                <div class="card glass flex-1 outputs-card">
+                    <div class="card-header space-between">
+                        <div class="flex-align-center">
+                            <i data-lucide="file-text" class="card-icon text-accent"></i>
+                            <h2>Generated Document</h2>
+                        </div>
+                        <div class="metrics-area" id="document-metrics">
+                            <span class="metric"><strong id="metric-rating">-/10</strong> Score</span>
+                            <span class="metric"><strong id="metric-iteration">0</strong> Iterations</span>
+                            <span class="metric"><strong id="metric-words">0</strong> Words</span>
+                        </div>
+                    </div>
+                    
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-tab="preview">
+                            <i data-lucide="eye" class="tab-icon"></i> Preview
+                        </button>
+                        <button class="tab-btn" data-tab="raw">
+                            <i data-lucide="code-2" class="tab-icon"></i> Raw Markdown
+                        </button>
+                        <button class="tab-btn" data-tab="critique-history">
+                            <i data-lucide="message-square" class="tab-icon"></i> Critiques
+                        </button>
+                    </div>
+
+                    <div class="card-body tab-content-wrapper scrollable">
+                        <!-- Preview Tab -->
+                        <div class="tab-content active" id="tab-preview">
+                            <div class="markdown-body" id="rendered-output">
+                                <div class="empty-state">
+                                    <i data-lucide="edit-3"></i>
+                                    <p>Article draft will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Raw Tab -->
+                        <div class="tab-content" id="tab-raw">
+                            <pre class="raw-markdown"><code id="raw-output" class="language-markdown"># Draft markdown will render here...</code></pre>
+                        </div>
+
+                        <!-- Critique History Tab -->
+                        <div class="tab-content" id="tab-critique-history">
+                            <div id="critique-timeline" class="critique-timeline">
+                                <div class="empty-state">
+                                    <i data-lucide="message-square"></i>
+                                    <p>Critique logs will compile here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer" id="actions-footer" style="display: none;">
+                        <button class="btn btn-secondary" id="btn-copy">
+                            <i data-lucide="copy" class="btn-icon"></i>
+                            <span>Copy Markdown</span>
+                        </button>
+                        <a href="#" id="btn-download" download="article.md" class="btn btn-secondary text-decoration-none">
+                            <i data-lucide="download" class="btn-icon"></i>
+                            <span>Download MD</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Script -->
+    <script src="app.js"></script>
+</body>
+</html>
